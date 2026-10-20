@@ -1671,17 +1671,28 @@ let hist     = lsGet('si_hist') || [];
 /* ── Health check ────────────────────────────── */
 async function pingBackend() {
   try {
-    const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) });
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), 12000) : null;
+    const opts = controller ? { signal: controller.signal } : {};
+    const r = await fetch(`${API}/health`, opts);
+    if (timer) clearTimeout(timer);
     setOnline(r.ok);
-  } catch { setOnline(false); }
+  } catch (err) {
+    console.warn('Backend ping:', err);
+    setOnline(false);
+  }
 }
 
 function setOnline(v) {
   S.online = v;
   // navbar dot
-  document.getElementById('ndot').className = v ? 'sdot sdot-on' : 'sdot sdot-off';
-  document.getElementById('ntxt').textContent = v ? 'live' : 'offline';
-  document.getElementById('ntxt').style.color = v ? '#34d399' : '#fb7185';
+  const ndot = document.getElementById('ndot');
+  const ntxt = document.getElementById('ntxt');
+  if (ndot) ndot.className = v ? 'sdot sdot-on' : 'sdot sdot-off';
+  if (ntxt) {
+    ntxt.textContent = v ? 'live' : 'offline';
+    ntxt.style.color = v ? '#34d399' : '#fb7185';
+  }
   // compare page bar
   const bar  = document.getElementById('cbar');
   const cdot = document.getElementById('cdot');
@@ -1689,12 +1700,12 @@ function setOnline(v) {
   if(!bar) return;
   if(v) {
     bar.className = 'sbar sbar-on';
-    cdot.className = 'sdot sdot-on';
-    cmsg.innerHTML = '✓ Backend connected — ready to extract real product data';
+    if (cdot) cdot.className = 'sdot sdot-on';
+    if (cmsg) cmsg.innerHTML = '✓ Backend connected to Render (' + API + ')';
   } else {
     bar.className = 'sbar sbar-off';
-    cdot.className = 'sdot sdot-off';
-    cmsg.innerHTML = 'Backend offline — run: <code class="mono" style="font-size:12px;background:rgba(255,255,255,.06);padding:1px 7px;border-radius:4px">uvicorn main:app --reload --port 8000</code>';
+    if (cdot) cdot.className = 'sdot sdot-off';
+    if (cmsg) cmsg.innerHTML = 'Connecting to Render backend... <button class="btn btns" style="font-size:11px;padding:3px 8px;margin-left:6px;border-radius:6px;cursor:pointer" onclick="pingBackend()">↻ Retry</button>';
   }
 }
 
