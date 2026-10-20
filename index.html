@@ -420,7 +420,7 @@ body.theme-light .pheart{background:rgba(255,255,255,.88);border-color:rgba(15,2
     <!-- Right Controls Tray -->
     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
       <!-- Live Status Pill -->
-      <div class="nav-status-pill" title="ShopIntel backend engine status">
+      <div class="nav-status-pill" onclick="pingBackend(true)" style="cursor:pointer" title="Click to test/reconnect ShopIntel backend">
         <span class="sdot sdot-off" id="ndot"></span>
         <span id="ntxt" class="nav-status-text">offline</span>
       </div>
@@ -1669,17 +1669,34 @@ let wishlist = lsGet('si_wish') || [];
 let hist     = lsGet('si_hist') || [];
 
 /* ── Health check ────────────────────────────── */
-async function pingBackend() {
+async function pingBackend(showFeedback = false) {
+  const ntxt = document.getElementById('ntxt');
+  if (ntxt && showFeedback) {
+    ntxt.textContent = 'connecting...';
+    ntxt.style.color = '#f59e0b';
+  }
   try {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = controller ? setTimeout(() => controller.abort(), 12000) : null;
+    const timer = controller ? setTimeout(() => controller.abort(), 15000) : null;
     const opts = controller ? { signal: controller.signal } : {};
-    const r = await fetch(`${API}/health`, opts);
+    
+    // Try /health first, fallback to root /
+    let r = await fetch(`${API}/health`, opts).catch(() => null);
+    if (!r || !r.ok) {
+      r = await fetch(`${API}/`, opts).catch(() => null);
+    }
     if (timer) clearTimeout(timer);
-    setOnline(r.ok);
+    
+    const isOk = !!(r && r.ok);
+    setOnline(isOk);
+    if (showFeedback) {
+      if (isOk) toast('✓ Backend connected to Render!', 's');
+      else toast('Backend unreachable or waking up from sleep. Try again in a few seconds.', 'e');
+    }
   } catch (err) {
-    console.warn('Backend ping:', err);
+    console.warn('Backend ping error:', err);
     setOnline(false);
+    if (showFeedback) toast('Connection failed: ' + (err.message || 'Network error'), 'e');
   }
 }
 
