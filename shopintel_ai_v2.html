@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Supabase JS Client for Auth & Multi-Device Sync -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>ShopIntel AI — Next-Gen Product Comparison</title>
@@ -1631,8 +1633,26 @@ body.theme-light .pheart{background:rgba(255,255,255,.88);border-color:rgba(15,2
 
 <!-- ══ SCRIPT ══════════════════════════════════════════════════ -->
 <script>
+
 /* ── Config ──────────────────────────────────── */
-const API = 'http://127.0.0.1:8000';
+/* ── Backend API Config ──────────────────────── */
+const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API = IS_LOCAL ? 'http://127.0.0.1:8000' : 'https://shopintel-backend-7wvc.onrender.com';
+
+/* ── Supabase Cloud Database & Auth ───────────── */
+const SUPABASE_URL = 'https://pcbmtqomxjqsbawfownd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBjYm10cW9teGpxc2Jhd2Zvd25kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1MDM3MjgsImV4cCI6MjEwODA3OTcyOH0.4QhLzX4RW-L6VvGS4-WiqmXfYpYHGoE27w_d_eenhfg';
+let supabaseClient = null;
+try {
+  if (window.supabase && typeof window.supabase.createClient === 'function') {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('✓ Supabase Client initialized successfully');
+  } else {
+    console.warn('Supabase SDK not loaded yet');
+  }
+} catch(err) {
+  console.warn('Supabase init error:', err);
+}
 
 /* ── State ───────────────────────────────────── */
 let S = {
@@ -2149,7 +2169,7 @@ function heartIcon(isOn) {
   return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
 }
 
-function heartToggle(btn, raw) {
+async function heartToggle(btn, raw) {
   let p = typeof raw === 'string' ? JSON.parse(raw.replace(/&quot;/g, '"')) : raw;
   const live = (S && S.products) ? S.products.find(x => x && (String(x.id) === String(p.id) || (x.source_url && x.source_url === p.source_url))) : null;
   if (live) {
@@ -2159,9 +2179,12 @@ function heartToggle(btn, raw) {
   if (wished) {
     wishlist = wishlist.filter(x => String(x.id) !== String(p.id));
     toast('Removed from wishlist', 'i');
+    cloudDeleteWishlist(p.id);
   } else {
-    wishlist.push({ ...p, saved_at: new Date().toISOString() });
+    const item = { ...p, saved_at: new Date().toISOString() };
+    wishlist.push(item);
     toast('Saved to wishlist! 💜', 's');
+    cloudSaveWishlist(item);
   }
   lsSet('si_wish', wishlist);
 
@@ -2211,7 +2234,7 @@ function renderWishlist() {
     </div>`).join('');
 }
 
-function removeWish(id) {
+async function removeWish(id) {
   wishlist = wishlist.filter(p => String(p.id) !== String(id));
   lsSet('si_wish', wishlist);
   renderWishlist();
@@ -2220,14 +2243,133 @@ function removeWish(id) {
     el.innerHTML = heartIcon(false);
     el.title = 'Save to wishlist';
   });
+  cloudDeleteWishlist(id);
   toast('Removed from wishlist', 'i');
 }
 
-function clearWishlist() {
+async function clearWishlist() {
   wishlist = [];
   lsSet('si_wish', wishlist);
   renderWishlist();
+  cloudClearWishlist();
   toast('Wishlist cleared','i');
+}
+
+/* ── Supabase Cloud Wishlist Sync (Multi-Device) ─ */
+async function cloudSaveWishlist(item) {
+  if (!supabaseClient || !currentUser) return;
+  try {
+    const row = {
+      user_id: currentUser.id,
+      product_id: String(item.id),
+      title: item.name || item.title || 'Product',
+      price: Number(item.price) || 0,
+      rating: Number(item.rating) || 0,
+      reviews: Number(item.reviews) || 0,
+      delivery: item.delivery || '',
+      in_stock: item.in_stock !== false,
+      score: Number(item.score) || 0,
+      platform: item.store || item.platform || 'Store',
+      image_url: item.image_url || '',
+      source_url: item.source_url || ''
+    };
+    const { error } = await supabaseClient.from('wishlists').upsert(row, { onConflict: 'user_id,product_id' });
+    if (error) console.warn('Supabase upsert wishlist error:', error.message);
+  } catch(err) {
+    console.warn('Cloud save wishlist error:', err);
+  }
+}
+
+async function cloudDeleteWishlist(productId) {
+  if (!supabaseClient || !currentUser) return;
+  try {
+    const { error } = await supabaseClient.from('wishlists').delete().match({
+      user_id: currentUser.id,
+      product_id: String(productId)
+    });
+    if (error) console.warn('Supabase delete wishlist error:', error.message);
+  } catch(err) {
+    console.warn('Cloud delete wishlist error:', err);
+  }
+}
+
+async function cloudClearWishlist() {
+  if (!supabaseClient || !currentUser) return;
+  try {
+    const { error } = await supabaseClient.from('wishlists').delete().match({
+      user_id: currentUser.id
+    });
+    if (error) console.warn('Supabase clear wishlist error:', error.message);
+  } catch(err) {
+    console.warn('Cloud clear wishlist error:', err);
+  }
+}
+
+async function syncWishlistFromCloud() {
+  if (!supabaseClient || !currentUser) {
+    wishlist = lsGet('si_wish') || [];
+    renderWishlist();
+    return;
+  }
+  try {
+    const { data, error } = await supabaseClient
+      .from('wishlists')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      if (data.length > 0) {
+        wishlist = data.map(row => ({
+          id: row.product_id,
+          name: row.title,
+          title: row.title,
+          price: Number(row.price) || 0,
+          rating: Number(row.rating) || 0,
+          reviews: Number(row.reviews) || 0,
+          delivery: row.delivery,
+          in_stock: row.in_stock,
+          score: Number(row.score) || 0,
+          store: row.platform,
+          platform: row.platform,
+          image_url: row.image_url,
+          source_url: row.source_url,
+          saved_at: row.created_at
+        }));
+        lsSet('si_wish', wishlist);
+      } else {
+        // If cloud empty, sync any guest local items up
+        const localItems = lsGet('si_wish') || [];
+        if (localItems.length > 0) {
+          for (const it of localItems) {
+            await cloudSaveWishlist(it);
+          }
+          wishlist = localItems;
+        } else {
+          wishlist = [];
+        }
+      }
+      renderWishlist();
+    }
+  } catch(err) {
+    console.warn('Sync wishlist error:', err);
+    wishlist = lsGet('si_wish') || [];
+    renderWishlist();
+  }
+}
+
+function setupSupabaseRealtime() {
+  if (!supabaseClient || !currentUser) return;
+  try {
+    supabaseClient
+      .channel('public:wishlists')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wishlists', filter: `user_id=eq.${currentUser.id}` }, (payload) => {
+        console.log('⚡ Realtime wishlist update from another device:', payload.eventType);
+        syncWishlistFromCloud();
+      })
+      .subscribe();
+  } catch(e) {
+    console.warn('Realtime subscription error:', e);
+  }
 }
 
 function wishToCompare() {
@@ -2416,8 +2558,8 @@ function checkPasswordStrength(p) {
   }
 }
 
-/* ── Form Handlers ── */
-function handleEmailSignIn(e) {
+/* ── Form Handlers (Supabase Auth Enabled) ── */
+async function handleEmailSignIn(e) {
   e.preventDefault();
   if (!turnstileState.signin) {
     toast('Please check "I am not a robot" to verify', 'e');
@@ -2432,25 +2574,56 @@ function handleEmailSignIn(e) {
   const btn = document.getElementById('btn-submit-signin');
   btn.disabled = true; btn.textContent = 'Signing in...';
 
-  setTimeout(() => {
+  try {
+    if (supabaseClient) {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: email,
+        password: pwd
+      });
+      if (error) throw error;
+
+      if (data && data.user) {
+        const metaName = data.user.user_metadata?.full_name;
+        const rawName = email.split('@')[0];
+        const name = metaName || (rawName.charAt(0).toUpperCase() + rawName.slice(1));
+        currentUser = {
+          id: data.user.id,
+          name: name,
+          email: data.user.email,
+          provider: 'supabase',
+          initial: name.charAt(0).toUpperCase(),
+          verified: true
+        };
+        lsSet('si_auth_user', currentUser);
+        updateAuthUI();
+        closeAuthModal();
+        toast(`Welcome back, ${currentUser.name}! 👋`, 's');
+        await syncWishlistFromCloud();
+        setupSupabaseRealtime();
+      }
+    } else {
+      const rawName = email.split('@')[0];
+      const name = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+      currentUser = {
+        id: 'usr_' + Date.now(),
+        name: name,
+        email: email,
+        provider: 'email',
+        verified: true
+      };
+      lsSet('si_auth_user', currentUser);
+      updateAuthUI();
+      closeAuthModal();
+      toast(`Welcome back, ${currentUser.name}! 👋`, 's');
+    }
+  } catch(err) {
+    toast(err.message || 'Error signing in. Check your email and password.', 'e');
+  } finally {
     btn.disabled = false; btn.textContent = 'Sign In →';
-    const rawName = email.split('@')[0];
-    const name = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-    currentUser = {
-      id: 'usr_' + Date.now(),
-      name: name,
-      email: email,
-      provider: 'email',
-      verified: true
-    };
-    lsSet('si_auth_user', currentUser);
-    updateAuthUI();
-    closeAuthModal();
-    toast(`Welcome back, ${currentUser.name}! 👋`, 's');
-  }, 600);
+  }
 }
 
-function handleEmailSignUp(e) {
+async function handleEmailSignUp(e) {
   e.preventDefault();
   const ans = (document.getElementById('captcha-input').value || '').trim();
   if (parseInt(ans) !== currentCaptchaAnswer) {
@@ -2466,40 +2639,105 @@ function handleEmailSignUp(e) {
   const email = document.getElementById('signup-email').value.trim();
   const pwd = document.getElementById('signup-password').value;
 
-  if (pwd.length < 8) {
-    toast('Password must be at least 8 characters long', 'e');
+  if (pwd.length < 6) {
+    toast('Password must be at least 6 characters long', 'e');
     return;
   }
 
   const btn = document.getElementById('btn-submit-signup');
   btn.disabled = true; btn.textContent = 'Creating account...';
 
-  setTimeout(() => {
+  try {
+    if (supabaseClient) {
+      const { data, error } = await supabaseClient.auth.signUp({
+        email: email,
+        password: pwd,
+        options: {
+          data: {
+            full_name: name,
+            initial: name.charAt(0).toUpperCase()
+          }
+        }
+      });
+      if (error) throw error;
+
+      if (data && data.user) {
+        currentUser = {
+          id: data.user.id,
+          name: name,
+          email: data.user.email,
+          provider: 'supabase',
+          initial: name.charAt(0).toUpperCase(),
+          verified: !!data.user.email_confirmed_at
+        };
+        lsSet('si_auth_user', currentUser);
+        updateAuthUI();
+        closeAuthModal();
+        await syncWishlistFromCloud();
+        setupSupabaseRealtime();
+        if (data.session) {
+          toast(`Account created! Welcome to ShopIntel, ${name}! 🎉`, 's');
+        } else {
+          toast(`Account created! Please check your email inbox to verify. 📩`, 's');
+        }
+      }
+    } else {
+      currentUser = {
+        id: 'usr_' + Date.now(),
+        name: name,
+        email: email,
+        provider: 'email',
+        verified: true
+      };
+      lsSet('si_auth_user', currentUser);
+      updateAuthUI();
+      closeAuthModal();
+      toast(`Account created! Welcome to ShopIntel, ${name}! 🎉`, 's');
+    }
+  } catch(err) {
+    toast(err.message || 'Error creating account', 'e');
+  } finally {
     btn.disabled = false; btn.textContent = 'Create Account →';
-    currentUser = {
-      id: 'usr_' + Date.now(),
-      name: name,
-      email: email,
-      provider: 'email',
-      verified: true
-    };
-    lsSet('si_auth_user', currentUser);
-    updateAuthUI();
-    closeAuthModal();
-    toast(`Account created! Welcome to ShopIntel, ${name}! 🎉`, 's');
-  }, 700);
+  }
 }
 
-function handlePasswordReset(e) {
+async function handlePasswordReset(e) {
   e.preventDefault();
   const email = document.getElementById('reset-email').value.trim();
   if (!email) return;
-  toast(`Password recovery link sent to ${email} 📩`, 's');
-  setTimeout(() => switchAuthTab('signin'), 1400);
+  try {
+    if (supabaseClient) {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + window.location.pathname
+      });
+      if (error) throw error;
+    }
+    toast(`Password recovery link sent to ${email} 📩`, 's');
+    setTimeout(() => switchAuthTab('signin'), 1400);
+  } catch(err) {
+    toast(err.message || 'Error sending recovery link', 'e');
+  }
 }
 
-/* ── Google OAuth Simulator ── */
-function startGoogleOAuth() {
+/* ── Google OAuth with Fallback ── */
+async function startGoogleOAuth() {
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + window.location.pathname
+        }
+      });
+      if (error) throw error;
+      return;
+    } catch(err) {
+      console.warn('Supabase Google OAuth fallback:', err.message);
+      // Fallback to interactive simulator if Google provider isn't enabled yet in Supabase
+      document.getElementById('google-oauth-overlay').style.display = 'flex';
+      return;
+    }
+  }
   document.getElementById('google-oauth-overlay').style.display = 'flex';
 }
 
@@ -2525,6 +2763,7 @@ function selectGoogleAccount(name, email, initial) {
   lsSet('si_auth_user', currentUser);
   updateAuthUI();
   toast(`Signed in with Google as ${email} ✅`, 's');
+  syncWishlistFromCloud();
 }
 
 function promptCustomGoogleAccount() {
@@ -2552,12 +2791,75 @@ document.addEventListener('click', e => {
   if (wrap && !wrap.contains(e.target)) closeProfileMenu();
 });
 
-function authSignOut() {
+async function authSignOut() {
+  if (supabaseClient) {
+    try {
+      await supabaseClient.auth.signOut();
+    } catch(e) {
+      console.warn('Sign out warning:', e);
+    }
+  }
   currentUser = null;
   lsSet('si_auth_user', null);
   closeProfileMenu();
   updateAuthUI();
+  wishlist = lsGet('si_wish') || [];
+  renderWishlist();
+  renderProfile();
   toast('Signed out successfully 👋', 'i');
+}
+
+/* ── Supabase Auth Lifecycle Listener ─────────── */
+async function initSupabaseAuth() {
+  if (!supabaseClient) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session && session.user) {
+      const metaName = session.user.user_metadata?.full_name;
+      const rawName = session.user.email ? session.user.email.split('@')[0] : 'User';
+      const name = metaName || (rawName.charAt(0).toUpperCase() + rawName.slice(1));
+      currentUser = {
+        id: session.user.id,
+        name: name,
+        email: session.user.email,
+        provider: session.user.app_metadata?.provider || 'supabase',
+        initial: name.charAt(0).toUpperCase(),
+        verified: true
+      };
+      lsSet('si_auth_user', currentUser);
+      updateAuthUI();
+      await syncWishlistFromCloud();
+      setupSupabaseRealtime();
+    }
+
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      console.log('⚡ Supabase Auth Event:', event);
+      if (session && session.user) {
+        const metaName = session.user.user_metadata?.full_name;
+        const rawName = session.user.email ? session.user.email.split('@')[0] : 'User';
+        const name = metaName || (rawName.charAt(0).toUpperCase() + rawName.slice(1));
+        currentUser = {
+          id: session.user.id,
+          name: name,
+          email: session.user.email,
+          provider: session.user.app_metadata?.provider || 'supabase',
+          initial: name.charAt(0).toUpperCase(),
+          verified: true
+        };
+        lsSet('si_auth_user', currentUser);
+        updateAuthUI();
+        await syncWishlistFromCloud();
+        setupSupabaseRealtime();
+      } else if (event === 'SIGNED_OUT') {
+        currentUser = null;
+        lsSet('si_auth_user', null);
+        updateAuthUI();
+        renderWishlist();
+      }
+    });
+  } catch(err) {
+    console.warn('Init Supabase Auth warning:', err);
+  }
 }
 
 function updateAuthUI() {
@@ -3167,6 +3469,7 @@ renderUrls();
 loadGeminiKey();
 updateAuthUI();
 refreshCaptcha();
+initSupabaseAuth();
 pingBackend();
 setInterval(pingBackend, 15000);
 
