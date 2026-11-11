@@ -31,6 +31,23 @@
 }
 
 /* ── Light Mode Engine ────────────────── */
+/* Light Theme Score Ring & Contrast */
+.score-ring-text {
+  fill: var(--tx) !important;
+  font-weight: 800 !important;
+}
+body.theme-light .score-ring-text {
+  fill: #0f172a !important;
+}
+body.theme-light .score-ring-bg {
+  stroke: rgba(15, 23, 42, 0.18) !important;
+}
+.addr-tag-btn.active {
+  background: var(--grd) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
 body.theme-light{
   --bg:#f8fafc;--s1:#ffffff;--s2:#f1f5f9;--s3:#e2e8f0;
   --glass:rgba(255,255,255,.84);--glass2:rgba(255,255,255,.96);--glass3:#ffffff;
@@ -779,8 +796,8 @@ body.theme-light .pheart{background:rgba(255,255,255,.88);border-color:rgba(15,2
       </h1>
 
       <!-- Subtitle -->
-      <p style="font-size:clamp(14.5px,1.8vw,18px);color:var(--tm);max-width:580px;margin:0 auto 30px;line-height:1.8;font-weight:300">
-        Indian e-commerce stores manipulate MRPs and disguise flash sales. ShopIntel extracts raw JSON-LD microdata, genuine buyer ratings, and checkout prices across 14+ platforms side by side.
+      <p style="font-size:clamp(14.5px,1.8vw,18px);color:var(--tm);max-width:680px;margin:0 auto 30px;line-height:1.8;font-weight:300">
+        <strong style="color:var(--tx);font-weight:600">Cross-Brand &amp; Multi-Platform Product Comparison and Decision Support System.</strong> ShopIntel extracts raw JSON-LD microdata, genuine buyer ratings, and checkout prices across 14+ platforms side by side.
       </p>
 
       <!-- Hero Quick Analyze Bar -->
@@ -1261,11 +1278,7 @@ body.theme-light .pheart{background:rgba(255,255,255,.88);border-color:rgba(15,2
     <p style="color:var(--tm);font-size:14px;font-weight:300;max-width:480px">Paste up to 6 URLs from any supported store. Real price, image, rating and AI score — extracted live.</p>
   </div>
 
-  <!-- Backend status -->
-  <div id="cbar" class="sbar sbar-off">
-    <span class="sdot sdot-off" id="cdot"></span>
-    <span id="cmsg">Backend offline — open a terminal and run: <code class="mono" style="font-size:12px;background:rgba(255,255,255,.06);padding:1px 7px;border-radius:4px">uvicorn main:app --reload --port 8000</code></span>
-  </div>
+  <!-- Comparison input container -->
 
   <!-- Input panel -->
   <div class="glass" style="padding:24px;margin-bottom:22px">
@@ -1527,33 +1540,159 @@ body.theme-light .pheart{background:rgba(255,255,255,.88);border-color:rgba(15,2
     <!-- Column 2: Shipping, Delivery & Shopping Preferences -->
     <div style="display:flex;flex-direction:column;gap:24px">
 
-      <!-- Section: Delivery & Shipping Preferences -->
+      <!-- Section: Delivery Locations & Multi-Address Manager -->
+      <div class="glass" style="padding:24px;border-radius:var(--rxl)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:18px">📍</span>
+            <div style="font-weight:700;font-size:16px">Saved Delivery Locations</div>
+          </div>
+          <button class="btn btnp" onclick="toggleAddAddressForm()" style="font-size:12px;padding:6px 14px;border-radius:8px">
+            ＋ Add Location
+          </button>
+        </div>
+        <p style="font-size:12px;color:var(--tm);margin-bottom:16px">Manage multiple delivery addresses (Home, Office, Hostels) for instant pin-code delivery calculations across stores.</p>
+
+        <!-- Saved Addresses Container -->
+        <div id="saved-addresses-list" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Add Address Form (Collapsible) -->
+        <div id="add-address-panel" style="display:none;padding:18px;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);margin-bottom:16px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+            <span>Add Delivery Address</span>
+            <span onclick="toggleAddAddressForm()" style="cursor:pointer;color:var(--td);font-size:16px">✕</span>
+          </div>
+
+          <!-- Tag Selection: Home, Office, Custom -->
+          <div style="margin-bottom:12px">
+            <label class="lbl" style="display:block;margin-bottom:6px">Location Tag</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <button type="button" class="btn btns addr-tag-btn active" id="atag-home" onclick="selectAddrTag('Home')">🏠 Home</button>
+              <button type="button" class="btn btns addr-tag-btn" id="atag-office" onclick="selectAddrTag('Office')">💼 Office</button>
+              <button type="button" class="btn btns addr-tag-btn" id="atag-custom" onclick="selectAddrTag('Custom')">🏷️ Custom Tag</button>
+              <input type="text" id="new-addr-custom-tag" class="inp" placeholder="e.g. Parent's Home, Studio" style="display:none;width:160px;font-size:12px;padding:6px 10px" />
+            </div>
+          </div>
+
+          <div class="form-grid-2" style="margin-bottom:10px">
+            <div>
+              <label class="lbl" style="display:block;margin-bottom:4px">Recipient Name</label>
+              <input type="text" id="new-addr-name" class="inp" placeholder="Full Name" style="font-size:13px" />
+            </div>
+            <div>
+              <label class="lbl" style="display:block;margin-bottom:4px">Contact Phone</label>
+              <input type="tel" id="new-addr-phone" class="inp" placeholder="98765 43210" style="font-size:13px" />
+            </div>
+          </div>
+
+          <div style="margin-bottom:10px">
+            <label class="lbl" style="display:block;margin-bottom:4px">Full Street Address</label>
+            <textarea id="new-addr-street" class="inp" rows="2" placeholder="Flat / House No., Building, Street, Landmark..." style="font-size:13px;resize:vertical"></textarea>
+          </div>
+
+          <div class="form-grid-2" style="margin-bottom:12px">
+            <div>
+              <label class="lbl" style="display:block;margin-bottom:4px">Delivery Pincode</label>
+              <input type="text" id="new-addr-pincode" class="inp" placeholder="6-digit Pincode" maxlength="6" style="font-size:13px" />
+            </div>
+            <div>
+              <label class="lbl" style="display:block;margin-bottom:4px">City &amp; State</label>
+              <input type="text" id="new-addr-citystate" class="inp" placeholder="City, State" style="font-size:13px" />
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tm);cursor:pointer">
+              <input type="checkbox" id="new-addr-default" checked style="accent-color:#6366f1" />
+              Set as primary delivery location
+            </label>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn btns" onclick="toggleAddAddressForm()" style="font-size:12px;padding:6px 12px">Cancel</button>
+              <button type="button" class="btn btnp" onclick="saveNewAddress()" style="font-size:12px;padding:6px 16px">Save Address</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Primary Active Pincode Quick Display -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--s1);border:1px solid var(--border);border-radius:var(--r);font-size:12px">
+          <div>
+            <span style="color:var(--td)">Active Pincode for Live Store ETA:</span>
+            <strong id="active-pincode-display" style="margin-left:6px;color:var(--tx);font-family:'JetBrains Mono',monospace">700001</strong>
+          </div>
+          <span class="pill pg" style="font-size:9.5px">⚡ Fast Delivery Active</span>
+        </div>
+      </div>
+
+      <!-- Section: Smart Shopper Profile & Sizing Radar -->
       <div class="glass" style="padding:24px;border-radius:var(--rxl)">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
-          <span style="font-size:18px">🚚</span>
-          <div style="font-weight:700;font-size:16px">Delivery &amp; Shipping Preferences</div>
+          <span style="font-size:18px">📏</span>
+          <div style="font-weight:700;font-size:16px">Shopper Sizing &amp; Deal Radar</div>
         </div>
-        <p style="font-size:12px;color:var(--tm);margin-bottom:16px">Used by ShopIntel to calculate exact delivery dates and availability across Amazon, Flipkart, and Myntra.</p>
 
-        <div class="form-grid-2" style="margin-bottom:14px">
-          <div>
-            <label class="lbl" style="display:block;margin-bottom:6px">Delivery Pincode</label>
-            <input type="text" id="prof-pincode" class="inp" placeholder="e.g. 700001" maxlength="6" />
+        <!-- Preferred Footwear Size -->
+        <div style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <label class="lbl">Preferred Footwear Size (UK / India)</label>
+            <span style="font-size:11px;color:var(--tm)" id="pref-shoe-label">UK 8</span>
           </div>
-          <div>
-            <label class="lbl" style="display:block;margin-bottom:6px">City / District</label>
-            <input type="text" id="prof-city" class="inp" placeholder="City" />
+          <div style="display:flex;gap:6px;flex-wrap:wrap" id="size-shoe-pills">
+            <span class="pill" style="cursor:pointer;background:var(--glass);color:var(--tm)" onclick="selectShoeSize('UK 6')">UK 6</span>
+            <span class="pill" style="cursor:pointer;background:var(--glass);color:var(--tm)" onclick="selectShoeSize('UK 7')">UK 7</span>
+            <span class="pill pg" style="cursor:pointer" onclick="selectShoeSize('UK 8')">✓ UK 8</span>
+            <span class="pill" style="cursor:pointer;background:var(--glass);color:var(--tm)" onclick="selectShoeSize('UK 9')">UK 9</span>
+            <span class="pill" style="cursor:pointer;background:var(--glass);color:var(--tm)" onclick="selectShoeSize('UK 10')">UK 10</span>
+            <span class="pill" style="cursor:pointer;background:var(--glass);color:var(--tm)" onclick="selectShoeSize('UK 11')">UK 11</span>
           </div>
         </div>
 
-        <div style="margin-bottom:14px">
-          <label class="lbl" style="display:block;margin-bottom:6px">State / Union Territory</label>
-          <input type="text" id="prof-state" class="inp" placeholder="State" />
+        <!-- Preferred Apparel Size -->
+        <div style="margin-bottom:18px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <label class="lbl">Preferred Apparel Size</label>
+            <span style="font-size:11px;color:var(--tm)" id="pref-apparel-label">M (Medium)</span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap" id="size-apparel-pills">
+            <span class="pill" style="cursor:pointer;background:var(--glass);color:var(--tm)" onclick="selectApparelSize('S')">S</span>
+            <span class="pill pg" style="cursor:pointer" onclick="selectApparelSize('M')">✓ M</span>
+            <span class="pill" style="cursor:pointer;background:var(--glass);color:var(--tm)" onclick="selectApparelSize('L')">L</span>
+            <span class="pill" style="cursor:pointer;background:var(--glass);color:var(--tm)" onclick="selectApparelSize('XL')">XL</span>
+            <span class="pill" style="cursor:pointer;background:var(--glass);color:var(--tm)" onclick="selectApparelSize('XXL')">XXL</span>
+          </div>
         </div>
 
+        <!-- Monthly Shopping Budget Goal -->
+        <div style="margin-bottom:18px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <label class="lbl">Monthly Shopping Budget Target</label>
+            <span id="prof-budget-val" style="font-size:12px;font-weight:700;color:var(--tx)">₹15,000 / mo</span>
+          </div>
+          <input type="range" class="calc-slider" id="prof-budget-slider" min="5000" max="60000" step="1000" value="15000" oninput="updateBudgetSlider(this.value)" style="width:100%" />
+        </div>
+
+        <!-- VIP Store Memberships -->
         <div>
-          <label class="lbl" style="display:block;margin-bottom:6px">Default Shipping Address</label>
-          <textarea id="prof-address" class="inp" rows="3" placeholder="House / Flat No., Street, Landmark..." style="resize:vertical"></textarea>
+          <label class="lbl" style="display:block;margin-bottom:8px">Active Store Memberships (for Free Prime / Express Delivery)</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx);cursor:pointer">
+              <input type="checkbox" id="vip-amazon" checked style="accent-color:#6366f1" />
+              ⚡ Amazon Prime
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx);cursor:pointer">
+              <input type="checkbox" id="vip-flipkart" checked style="accent-color:#6366f1" />
+              🛍️ Flipkart Plus
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx);cursor:pointer">
+              <input type="checkbox" id="vip-myntra" style="accent-color:#6366f1" />
+              👑 Myntra Insider
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx);cursor:pointer">
+              <input type="checkbox" id="vip-puma" style="accent-color:#6366f1" />
+              🐾 Puma Pass
+            </label>
+          </div>
         </div>
       </div>
 
@@ -1902,19 +2041,20 @@ function imgHTML(p) {
   return `<div class="pimg-fallback">${p.emoji||'🛍'}</div>`;
 }
 
-/* ── Score ring SVG (Overflow & 100 cap fixed) ── */
+/* ── Score ring SVG (Theme-Aware, Light & Dark High Contrast) ── */
 function ring(score, sz=48) {
   const s = Math.max(0, Math.min(100, Math.round(score||0)));
   const r = sz*.38, circ = 2*Math.PI*r;
   const dash = (s/100)*circ;
   const col = s>=80?'#6366f1':s>=65?'#8b5cf6':s>=50?'#f59e0b':'#64748b';
+  const fs = sz >= 70 ? 17 : sz >= 52 ? 13 : 10;
   return `<svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}" style="flex-shrink:0;overflow:visible">
-    <circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="2.5"/>
+    <circle class="score-ring-bg" cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="var(--border2)" stroke-width="2.5" opacity="0.6"/>
     <circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="${col}" stroke-width="2.5"
       stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-linecap="${s>=100?'butt':'round'}"
       transform="rotate(-90 ${sz/2} ${sz/2})"/>
-    <text x="${sz/2}" y="${sz/2}" text-anchor="middle" dominant-baseline="central"
-      style="fill:#eef2ff;font-size:${sz<52?'9':'11'}px;font-weight:700;font-family:'JetBrains Mono',monospace">${s}</text>
+    <text class="score-ring-text" x="${sz/2}" y="${sz/2}" text-anchor="middle" dominant-baseline="central"
+      style="font-size:${fs}px;font-family:'JetBrains Mono',monospace">${s}</text>
   </svg>`;
 }
 
@@ -2929,6 +3069,198 @@ function updateAuthUI() {
 /* ═══════════════════════════════════════════════
    USER PROFILE MANAGEMENT
 ═══════════════════════════════════════════════ */
+/* ── Profile & Multi-Address Delivery Manager ── */
+let currentAddrTag = 'Home';
+
+let userAddresses = lsGet('si_user_addresses') || [
+  {
+    id: 'addr_1',
+    tag: 'Home',
+    customTag: '',
+    isDefault: true,
+    name: 'Soumyadeep Roy',
+    phone: '98765 43210',
+    pincode: '700001',
+    city: 'Kolkata',
+    state: 'West Bengal',
+    street: 'Salt Lake City, Sector V, Bidhannagar'
+  },
+  {
+    id: 'addr_2',
+    tag: 'Office',
+    customTag: '',
+    isDefault: false,
+    name: 'Soumyadeep Roy',
+    phone: '98765 43210',
+    pincode: '700091',
+    city: 'Kolkata',
+    state: 'West Bengal',
+    street: 'DLF IT Park, Tower 2, 4th Floor, Action Area II, New Town'
+  }
+];
+
+function selectAddrTag(tag) {
+  currentAddrTag = tag;
+  document.querySelectorAll('.addr-tag-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('atag-' + tag.toLowerCase());
+  if (btn) btn.classList.add('active');
+  const customInp = document.getElementById('new-addr-custom-tag');
+  if (customInp) customInp.style.display = tag === 'Custom' ? 'inline-block' : 'none';
+}
+
+function toggleAddAddressForm() {
+  const panel = document.getElementById('add-address-panel');
+  if (!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function renderAddressCards() {
+  const container = document.getElementById('saved-addresses-list');
+  if (!container) return;
+
+  if (!userAddresses || userAddresses.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:16px;color:var(--td);font-size:12px;background:var(--s2);border-radius:var(--r)">No delivery addresses saved yet. Click "+ Add Location" above.</div>`;
+    return;
+  }
+
+  container.innerHTML = userAddresses.map(addr => {
+    const isHome = addr.tag === 'Home';
+    const isOffice = addr.tag === 'Office';
+    const tagEmoji = isHome ? '🏠' : isOffice ? '💼' : '🏷️';
+    const tagLabel = addr.tag === 'Custom' && addr.customTag ? addr.customTag : addr.tag;
+    const tagPillClass = isHome ? 'pg' : isOffice ? 'pb' : 'pv';
+
+    return `
+      <div style="padding:14px 16px;background:var(--s2);border:1px solid ${addr.isDefault ? '#6366f1' : 'var(--border2)'};border-radius:var(--r);position:relative;transition:all .18s">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="pill ${tagPillClass}" style="font-size:10px;font-weight:700">${tagEmoji} ${tagLabel}</span>
+            ${addr.isDefault ? '<span class="pill pi" style="font-size:9px;padding:2px 6px">Primary Location</span>' : ''}
+          </div>
+          <div style="display:flex;gap:6px">
+            ${!addr.isDefault ? `<button class="btn btns" onclick="setDefaultAddress('${addr.id}')" style="font-size:10px;padding:3px 8px">Set Default</button>` : ''}
+            <button class="btn btnd" onclick="deleteAddress('${addr.id}')" style="font-size:10px;padding:3px 8px" title="Delete address">🗑️</button>
+          </div>
+        </div>
+
+        <div style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:2px">${addr.name || 'Recipient'} <span style="font-weight:400;color:var(--tm);font-size:11px;margin-left:4px">(${addr.phone || 'No phone'})</span></div>
+        <div style="font-size:12px;color:var(--tm);line-height:1.5">${addr.street || ''}, ${addr.city || ''}, ${addr.state || ''} - <strong style="color:var(--tx);font-family:'JetBrains Mono',monospace">${addr.pincode}</strong></div>
+      </div>
+    `;
+  }).join('');
+
+  // Update active pincode in header
+  const def = userAddresses.find(a => a.isDefault) || userAddresses[0];
+  const pinDisp = document.getElementById('active-pincode-display');
+  if (pinDisp && def) pinDisp.textContent = def.pincode || '700001';
+}
+
+function saveNewAddress() {
+  const name = (document.getElementById('new-addr-name').value || '').trim();
+  const phone = (document.getElementById('new-addr-phone').value || '').trim();
+  const street = (document.getElementById('new-addr-street').value || '').trim();
+  const pincode = (document.getElementById('new-addr-pincode').value || '').trim();
+  const citystate = (document.getElementById('new-addr-citystate').value || '').trim();
+  const isDef = document.getElementById('new-addr-default').checked;
+  const customTag = (document.getElementById('new-addr-custom-tag').value || '').trim();
+
+  if (!pincode || pincode.length < 6) {
+    toast('Please enter a valid 6-digit delivery pincode', 'e');
+    return;
+  }
+  if (!street) {
+    toast('Please enter your full street address', 'e');
+    return;
+  }
+
+  const parts = citystate.split(',');
+  const city = parts[0] ? parts[0].trim() : 'City';
+  const state = parts[1] ? parts[1].trim() : 'State';
+
+  const newAddr = {
+    id: 'addr_' + Date.now(),
+    tag: currentAddrTag,
+    customTag: currentAddrTag === 'Custom' ? (customTag || 'Custom') : '',
+    isDefault: isDef,
+    name: name || userProfile.firstName || 'User',
+    phone: phone || userProfile.phone || '',
+    pincode: pincode,
+    city: city,
+    state: state,
+    street: street
+  };
+
+  if (isDef) {
+    userAddresses.forEach(a => a.isDefault = false);
+  }
+
+  userAddresses.push(newAddr);
+  lsSet('si_user_addresses', userAddresses);
+  renderAddressCards();
+  toggleAddAddressForm();
+
+  // Clear inputs
+  document.getElementById('new-addr-street').value = '';
+  document.getElementById('new-addr-pincode').value = '';
+  document.getElementById('new-addr-citystate').value = '';
+  toast(`✓ Added delivery location "${newAddr.tag === 'Custom' ? newAddr.customTag : newAddr.tag}"!`, 's');
+}
+
+function setDefaultAddress(id) {
+  userAddresses.forEach(a => a.isDefault = (a.id === id));
+  lsSet('si_user_addresses', userAddresses);
+  renderAddressCards();
+  toast('Primary delivery location updated! 🚚', 's');
+}
+
+function deleteAddress(id) {
+  if (userAddresses.length <= 1) {
+    toast('You must have at least one delivery address', 'e');
+    return;
+  }
+  userAddresses = userAddresses.filter(a => a.id !== id);
+  if (!userAddresses.some(a => a.isDefault)) {
+    userAddresses[0].isDefault = true;
+  }
+  lsSet('si_user_addresses', userAddresses);
+  renderAddressCards();
+  toast('Delivery address removed', 'i');
+}
+
+/* Sizing and Budget Helpers */
+function selectShoeSize(sz) {
+  userProfile.shoeSize = sz;
+  const lbl = document.getElementById('pref-shoe-label');
+  if (lbl) lbl.textContent = sz;
+  document.querySelectorAll('#size-shoe-pills .pill').forEach(p => {
+    const isThis = p.textContent.includes(sz);
+    p.className = 'pill ' + (isThis ? 'pg' : '');
+    p.textContent = (isThis ? '✓ ' : '') + p.textContent.replace('✓ ', '');
+  });
+  lsSet('si_user_profile', userProfile);
+  toast(`Shoe size preference set to ${sz}`, 's');
+}
+
+function selectApparelSize(sz) {
+  userProfile.apparelSize = sz;
+  const lbl = document.getElementById('pref-apparel-label');
+  if (lbl) lbl.textContent = sz;
+  document.querySelectorAll('#size-apparel-pills .pill').forEach(p => {
+    const isThis = p.textContent.includes(sz);
+    p.className = 'pill ' + (isThis ? 'pg' : '');
+    p.textContent = (isThis ? '✓ ' : '') + p.textContent.replace('✓ ', '');
+  });
+  lsSet('si_user_profile', userProfile);
+  toast(`Apparel size preference set to ${sz}`, 's');
+}
+
+function updateBudgetSlider(val) {
+  const budget = Number(val) || 15000;
+  userProfile.monthlyBudget = budget;
+  const el = document.getElementById('prof-budget-val');
+  if (el) el.textContent = '₹' + budget.toLocaleString('en-IN') + ' / mo';
+}
+
 let userProfile = lsGet('si_user_profile') || {
   firstName: 'Soumyadeep',
   lastName: 'Roy',
@@ -2949,6 +3281,21 @@ let userProfile = lsGet('si_user_profile') || {
 };
 
 function renderProfile() {
+  renderAddressCards();
+  if (userProfile.shoeSize) {
+    const lbl = document.getElementById('pref-shoe-label');
+    if (lbl) lbl.textContent = userProfile.shoeSize;
+  }
+  if (userProfile.apparelSize) {
+    const lbl = document.getElementById('pref-apparel-label');
+    if (lbl) lbl.textContent = userProfile.apparelSize;
+  }
+  if (userProfile.monthlyBudget) {
+    const bSlider = document.getElementById('prof-budget-slider');
+    const bVal = document.getElementById('prof-budget-val');
+    if (bSlider) bSlider.value = userProfile.monthlyBudget;
+    if (bVal) bVal.textContent = '₹' + Number(userProfile.monthlyBudget).toLocaleString('en-IN') + ' / mo';
+  }
   const isGuest = !currentUser;
   const guestNotice = document.getElementById('profile-guest-notice');
   if (guestNotice) guestNotice.style.display = isGuest ? 'block' : 'none';
