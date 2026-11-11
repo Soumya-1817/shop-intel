@@ -45,7 +45,7 @@ if GEMINI_KEY:
     if gemini_client:
         print("✅ Default Gemini client ready")
 
-app = FastAPI(title="ShopIntel AI", version="2.2.0")
+app = FastAPI(title="ShopIntel AI", version="2.3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 class CompareRequest(BaseModel):
@@ -1839,7 +1839,7 @@ def _fail(idx, url, store, reason):
 
 @app.get("/")
 def root():
-    return {"status": "ShopIntel AI running", "gemini": bool(gemini_client or GEMINI_KEY), "version": "2.2.0"}
+    return {"status": "ShopIntel AI running", "gemini": bool(gemini_client or GEMINI_KEY), "version": "2.3.0"}
 
 @app.get("/health")
 def health():
