@@ -1775,8 +1775,10 @@ body.theme-light .pheart{background:rgba(255,255,255,.88);border-color:rgba(15,2
 
 /* ── Config ──────────────────────────────────── */
 /* ── Backend API Config ──────────────────────── */
-const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API = IS_LOCAL ? 'http://127.0.0.1:8000' : 'https://shopintel-backend-7wvc.onrender.com';
+// Prioritize local server (127.0.0.1:8000) when running locally or opened from file://
+let API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:' || !window.location.hostname)
+  ? 'http://127.0.0.1:8000'
+  : 'https://shopintel-backend-7wvc.onrender.com';
 
 /* ── Supabase Cloud Database & Auth ───────────── */
 const SUPABASE_URL = 'https://pcbmtqomxjqsbawfownd.supabase.co';
@@ -1815,21 +1817,41 @@ async function pingBackend(showFeedback = false) {
     ntxt.style.color = '#f59e0b';
   }
   try {
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = controller ? setTimeout(() => controller.abort(), 15000) : null;
-    const opts = controller ? { signal: controller.signal } : {};
-    
-    // Try /health first, fallback to root /
-    let r = await fetch(`${API}/health`, opts).catch(() => null);
-    if (!r || !r.ok) {
-      r = await fetch(`${API}/`, opts).catch(() => null);
+    // 1. Try local backend first (only on http: / file: to avoid browser HTTPS mixed content warning)
+    let isOk = false;
+    let label = 'Local Server (127.0.0.1:8000)';
+    if (window.location.protocol !== 'https:') {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 1500);
+        const res = await fetch('http://127.0.0.1:8000/health', { signal: ctrl.signal });
+        clearTimeout(t);
+        if (res.ok) {
+          API = 'http://127.0.0.1:8000';
+          isOk = true;
+        }
+      } catch(e) {}
     }
-    if (timer) clearTimeout(timer);
-    
-    const isOk = !!(r && r.ok);
-    setOnline(isOk);
+
+    // 2. Fall back to cloud Render if local is not active
+    if (!isOk) {
+      const renderUrl = 'https://shopintel-backend-7wvc.onrender.com';
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 12000);
+        const res = await fetch(`${renderUrl}/health`, { signal: ctrl.signal });
+        clearTimeout(t);
+        if (res.ok) {
+          API = renderUrl;
+          isOk = true;
+          label = 'Cloud Render';
+        }
+      } catch(e) {}
+    }
+
+    setOnline(isOk, label);
     if (showFeedback) {
-      if (isOk) toast('✓ Backend connected to Render!', 's');
+      if (isOk) toast(`✓ Backend connected (${label})!`, 's');
       else toast('Backend unreachable or waking up from sleep. Try again in a few seconds.', 'e');
     }
   } catch (err) {
@@ -1839,7 +1861,7 @@ async function pingBackend(showFeedback = false) {
   }
 }
 
-function setOnline(v) {
+function setOnline(v, label = '') {
   S.online = v;
   // navbar dot
   const ndot = document.getElementById('ndot');
@@ -1857,11 +1879,11 @@ function setOnline(v) {
   if(v) {
     bar.className = 'sbar sbar-on';
     if (cdot) cdot.className = 'sdot sdot-on';
-    if (cmsg) cmsg.innerHTML = '✓ Backend connected to Render (' + API + ')';
+    if (cmsg) cmsg.innerHTML = `✓ Backend connected (${label || API})`;
   } else {
     bar.className = 'sbar sbar-off';
     if (cdot) cdot.className = 'sdot sdot-off';
-    if (cmsg) cmsg.innerHTML = 'Connecting to Render backend... <button class="btn btns" style="font-size:11px;padding:3px 8px;margin-left:6px;border-radius:6px;cursor:pointer" onclick="pingBackend()">↻ Retry</button>';
+    if (cmsg) cmsg.innerHTML = 'Connecting to backend... <button class="btn btns" style="font-size:11px;padding:3px 8px;margin-left:6px;border-radius:6px;cursor:pointer" onclick="pingBackend(true)">↻ Retry</button>';
   }
 }
 
