@@ -59,12 +59,12 @@ class CompareRequest(BaseModel):
 UA_DESKTOP = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/137.0.0.0 Safari/537.36"
+    "Chrome/124.0.0.0 Safari/537.36"
 )
 UA_MOBILE = (
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/137.0.0.0 Mobile Safari/537.36"
+    "Chrome/124.0.0.0 Mobile Safari/537.36"
 )
 
 def make_headers(ua: str, referer: str = "", no_brotli: bool = False) -> dict:
@@ -89,7 +89,7 @@ def make_headers(ua: str, referer: str = "", no_brotli: bool = False) -> dict:
     mobile = "Mobile" in ua
     h["sec-ch-ua-mobile"] = "?1" if mobile else "?0"
     h["sec-ch-ua-platform"] = '"Android"' if mobile else '"Windows"'
-    h["sec-ch-ua"] = '"Chromium";v="137","Google Chrome";v="137","Not=A?Brand";v="24"'
+    h["sec-ch-ua"] = '"Chromium";v="124","Google Chrome";v="124","Not-A.Brand";v="99"'
     return h
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1991,6 +1991,42 @@ def root():
 @app.get("/health")
 def health():
     return {"ok": True, "gemini": bool(gemini_client or GEMINI_KEY)}
+
+@app.get("/diagnostic")
+async def diagnostic():
+    info = {"version": "2.4.1", "curl_cffi": False}
+    try:
+        import curl_cffi
+        from curl_cffi.requests import AsyncSession
+        info["curl_cffi"] = True
+        info["curl_cffi_version"] = curl_cffi.__version__
+        
+        # Test Myntra
+        m_url = "https://www.myntra.com/tshirts/levis/levis-brand-logo-printed-pure-cotton-slim-fit-t-shirt/38810107/buy"
+        try:
+            async with AsyncSession(impersonate="chrome120") as s:
+                r = await s.get(m_url, timeout=12)
+                info["myntra_status"] = r.status_code
+                info["myntra_len"] = len(r.text)
+                info["myntra_sample"] = r.text[:200]
+        except Exception as me:
+            info["myntra_err"] = str(me)
+
+        # Test Flipkart
+        f_url = "https://www.flipkart.com/puma-rungryp-sneakers-men/p/itm014500194b6a8?pid=SHOGTDWQB73CYAFF"
+        try:
+            async with AsyncSession(impersonate="chrome120") as s:
+                r2 = await s.get(f_url, timeout=12)
+                info["flipkart_status"] = r2.status_code
+                info["flipkart_len"] = len(r2.text)
+                info["flipkart_sample"] = r2.text[:200]
+        except Exception as fe:
+            info["flipkart_err"] = str(fe)
+
+    except Exception as e:
+        info["curl_cffi_import_err"] = str(e)
+
+    return info
 
 @app.post("/verify-gemini")
 async def verify_gemini(body: dict):
