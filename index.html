@@ -34,13 +34,19 @@
 /* Light Theme Score Ring & Contrast */
 .score-ring-text {
   fill: var(--tx) !important;
+  color: var(--tx) !important;
   font-weight: 800 !important;
 }
 body.theme-light .score-ring-text {
   fill: #0f172a !important;
+  color: #0f172a !important;
 }
 body.theme-light .score-ring-bg {
-  stroke: rgba(15, 23, 42, 0.18) !important;
+  stroke: rgba(15, 23, 42, 0.22) !important;
+}
+body.theme-light .lbl {
+  color: #475569 !important;
+  font-weight: 700 !important;
 }
 .addr-tag-btn.active {
   background: var(--grd) !important;
@@ -234,6 +240,7 @@ nav a:hover,nav a.active{color:var(--tx)}
 .sdot{width:7px;height:7px;border-radius:50%;flex-shrink:0;animation:pulse 2s infinite}
 .sdot-on{background:#34d399}
 .sdot-off{background:#fb7185;animation:none}
+.sdot-waking{background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,.6);animation:pulse 1.2s infinite}
 
 /* ── Product card ─────────────────────── */
 .prod-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--rxl);overflow:hidden;transition:transform .22s,border-color .22s,box-shadow .22s;position:relative;display:flex;flex-direction:column}
@@ -438,8 +445,8 @@ body.theme-light .pheart{background:rgba(255,255,255,.88);border-color:rgba(15,2
     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
       <!-- Live Status Pill -->
       <div class="nav-status-pill" onclick="pingBackend(true)" style="cursor:pointer" title="Click to test/reconnect ShopIntel backend">
-        <span class="sdot sdot-off" id="ndot"></span>
-        <span id="ntxt" class="nav-status-text">offline</span>
+        <span class="sdot sdot-waking" id="ndot"></span>
+        <span id="ntxt" class="nav-status-text" style="color:#f59e0b">connecting...</span>
       </div>
 
       <!-- Theme Switcher -->
@@ -1809,21 +1816,36 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)) } catch
 let wishlist = lsGet('si_wish') || [];
 let hist     = lsGet('si_hist') || [];
 
-/* ── Health check ────────────────────────────── */
+/* ── Health check (Resilient Render Cold-Start & Auto-Retry) ── */
+let pingInFlight = false;
+let consecutiveFails = 0;
+let pingTimer = null;
+
 async function pingBackend(showFeedback = false) {
+  if (pingInFlight) return;
+  pingInFlight = true;
+
+  const ndot = document.getElementById('ndot');
   const ntxt = document.getElementById('ntxt');
-  if (ntxt && showFeedback) {
-    ntxt.textContent = 'connecting...';
-    ntxt.style.color = '#f59e0b';
+
+  // If not currently online, indicate wake-up in progress
+  if (!S.online) {
+    if (ndot) ndot.className = 'sdot sdot-waking';
+    if (ntxt) {
+      ntxt.textContent = 'waking up...';
+      ntxt.style.color = '#f59e0b';
+    }
   }
+
   try {
-    // 1. Try local backend first (only on http: / file: to avoid browser HTTPS mixed content warning)
     let isOk = false;
     let label = 'Local Server (127.0.0.1:8000)';
+
+    // 1. Try local backend first (only on http: / file: to avoid browser HTTPS mixed content warning)
     if (window.location.protocol !== 'https:') {
       try {
         const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 1500);
+        const t = setTimeout(() => ctrl.abort(), 1800);
         const res = await fetch('http://127.0.0.1:8000/health', { signal: ctrl.signal });
         clearTimeout(t);
         if (res.ok) {
@@ -1837,8 +1859,9 @@ async function pingBackend(showFeedback = false) {
     if (!isOk) {
       const renderUrl = 'https://shopintel-backend-7wvc.onrender.com';
       try {
+        // Render free tier cold-starts take 30-45 seconds when waking from sleep
         const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 12000);
+        const t = setTimeout(() => ctrl.abort(), 45000);
         const res = await fetch(`${renderUrl}/health`, { signal: ctrl.signal });
         clearTimeout(t);
         if (res.ok) {
@@ -1846,19 +1869,52 @@ async function pingBackend(showFeedback = false) {
           isOk = true;
           label = 'Cloud Render';
         }
-      } catch(e) {}
+      } catch(e) {
+        // Quick fallback check to root endpoint
+        try {
+          const ctrl2 = new AbortController();
+          const t2 = setTimeout(() => ctrl2.abort(), 6000);
+          const res2 = await fetch(`${renderUrl}/`, { signal: ctrl2.signal });
+          clearTimeout(t2);
+          if (res2.ok) {
+            API = renderUrl;
+            isOk = true;
+            label = 'Cloud Render';
+          }
+        } catch(e2) {}
+      }
     }
 
-    setOnline(isOk, label);
-    if (showFeedback) {
-      if (isOk) toast(`✓ Backend connected (${label})!`, 's');
-      else toast('Backend unreachable or waking up from sleep. Try again in a few seconds.', 'e');
+    if (isOk) {
+      consecutiveFails = 0;
+      setOnline(true, label);
+      if (showFeedback) toast(`✓ Backend connected (${label})!`, 's');
+      scheduleNextPing(20000); // 20s steady interval when healthy
+    } else {
+      consecutiveFails++;
+      // Only transition to offline if 2 consecutive pings fail
+      if (consecutiveFails >= 2 || !S.online) {
+        setOnline(false);
+      }
+      if (showFeedback) toast('Backend is waking up from sleep. Auto-reconnecting in a few seconds...', 'e');
+      scheduleNextPing(4000); // Rapid 4s retry while offline/waking
     }
   } catch (err) {
     console.warn('Backend ping error:', err);
-    setOnline(false);
-    if (showFeedback) toast('Connection failed: ' + (err.message || 'Network error'), 'e');
+    consecutiveFails++;
+    if (consecutiveFails >= 2 || !S.online) {
+      setOnline(false);
+    }
+    if (showFeedback) toast('Connection failed: ' + (err.message || 'Retrying...'), 'e');
+    scheduleNextPing(4000);
+  } finally {
+    pingInFlight = false;
   }
+}
+
+function scheduleNextPing(delayMs) {
+  if (pingTimer) clearTimeout(pingTimer);
+  pingTimer = setTimeout(pingBackend, delayMs);
 }
 
 function setOnline(v, label = '') {
@@ -1871,7 +1927,7 @@ function setOnline(v, label = '') {
     ntxt.textContent = v ? 'live' : 'offline';
     ntxt.style.color = v ? '#34d399' : '#fb7185';
   }
-  // compare page bar
+  // compare page bar (if present)
   const bar  = document.getElementById('cbar');
   const cdot = document.getElementById('cdot');
   const cmsg = document.getElementById('cmsg');
@@ -2075,8 +2131,8 @@ function ring(score, sz=48) {
     <circle cx="${sz/2}" cy="${sz/2}" r="${r}" fill="none" stroke="${col}" stroke-width="2.5"
       stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-linecap="${s>=100?'butt':'round'}"
       transform="rotate(-90 ${sz/2} ${sz/2})"/>
-    <text class="score-ring-text" x="${sz/2}" y="${sz/2}" text-anchor="middle" dominant-baseline="central"
-      style="font-size:${fs}px;font-family:'JetBrains Mono',monospace">${s}</text>
+    <text class="score-ring-text" fill="var(--tx)" color="var(--tx)" x="${sz/2}" y="${sz/2}" text-anchor="middle" dominant-baseline="central"
+      style="font-size:${fs}px;font-family:'JetBrains Mono',monospace;font-weight:800">${s}</text>
   </svg>`;
 }
 
@@ -3867,8 +3923,7 @@ loadGeminiKey();
 updateAuthUI();
 refreshCaptcha();
 initSupabaseAuth();
-pingBackend();
-setInterval(pingBackend, 15000);
+pingBackend(); // Resilient self-scheduling health check
 
 </script>
 </body>
