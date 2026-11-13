@@ -1453,17 +1453,22 @@ def calculate_score(p: dict, all_prices: list) -> int:
 async def fetch_html(url: str) -> tuple[str, int]:
     """
     Fetches real HTML from Indian and global e-commerce stores.
-    Uses curl_cffi AsyncSession with Chrome 120/124 TLS impersonation to bypass Cloudflare and Akamai
-    bot defenses, with fallback to httpx.
+    Uses curl_cffi AsyncSession with Chrome TLS impersonation and Google Referer to bypass Akamai & Cloudflare,
+    with fallback to httpx.
     """
-    # 1. Primary: curl_cffi with Chrome TLS impersonation (Bypasses Akamai & Cloudflare bot protection)
+    # 1. Primary: curl_cffi with Chrome TLS impersonation and Google Referer
     try:
         from curl_cffi.requests import AsyncSession
+        custom_headers = {
+            "Referer": "https://www.google.com/",
+            "Accept-Language": "en-IN,en;q=0.9,hi;q=0.8",
+            "User-Agent": UA_MOBILE if ("myntra" in url.lower() or "flipkart" in url.lower()) else UA_DESKTOP,
+        }
         async with AsyncSession(impersonate="chrome120") as s:
-            resp = await s.get(url, timeout=14)
+            resp = await s.get(url, headers=custom_headers, timeout=15)
             if resp.status_code == 200 and len(resp.text) > 500:
-                # Discard generic homepage redirects on Flipkart
-                if "flipkart" in url.lower() and "All Categories | Flipkart.com" in resp.text and len(resp.text) < 400000:
+                # Discard generic homepage/category redirects on Flipkart
+                if "flipkart" in url.lower() and ("All Categories | Flipkart.com" in resp.text or "Buy Products Online at Best Price in India" in resp.text):
                     pass
                 else:
                     return resp.text, 200
@@ -1474,14 +1479,19 @@ async def fetch_html(url: str) -> tuple[str, int]:
     store_key = get_store_key(url)
     if store_key == "flipkart":
         attempt_headers = [
-            make_headers(UA_DESKTOP, "https://www.google.com/", no_brotli=True),
             make_headers(UA_MOBILE, "https://www.google.com/", no_brotli=True),
+            make_headers(UA_DESKTOP, "https://www.google.com/", no_brotli=True),
             make_headers(UA_DESKTOP, "https://www.flipkart.com/", no_brotli=True),
         ]
     elif store_key == "amazon":
         attempt_headers = [
             make_headers(UA_DESKTOP, "https://www.google.com/"),
             make_headers(UA_MOBILE, "https://www.google.com/"),
+        ]
+    elif store_key == "myntra":
+        attempt_headers = [
+            make_headers(UA_MOBILE, "https://www.google.com/"),
+            make_headers(UA_DESKTOP, "https://www.google.com/"),
         ]
     else:
         attempt_headers = [
@@ -1501,7 +1511,7 @@ async def fetch_html(url: str) -> tuple[str, int]:
                 resp = await client.get(url)
                 last_status = resp.status_code
                 if resp.status_code == 200 and len(resp.text) > 500:
-                    if "flipkart" in url.lower() and "All Categories | Flipkart.com" in resp.text and len(resp.text) < 400000:
+                    if "flipkart" in url.lower() and ("All Categories | Flipkart.com" in resp.text or "Buy Products Online at Best Price in India" in resp.text):
                         continue
                     return resp.text, 200
                 await asyncio.sleep(0.3)
